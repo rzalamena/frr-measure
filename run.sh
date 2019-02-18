@@ -5,6 +5,7 @@ usage() {
 
     -a amount: the amount of instances to run.
     -e: use exabgp to insert routes.
+    -p prefixes: the amount of prefixes to insert (implies -e, default is 100).
 "
 }
 
@@ -12,12 +13,13 @@ usage() {
 # Variables.
 #
 use_exabgp=0
+prefix_count=100
 exabgp_user=frr
 
 #
 # Script input sanitize.
 #
-options=$(getopt -o "a:e" -- $@)
+options=$(getopt -o "a:ep:" -- $@)
 if [ $? -ne 0 ]; then
     usage
     exit 1
@@ -32,10 +34,14 @@ while true; do
             amount=$2
             shift 2
             ;;
-
         -e)
             use_exabgp=1
             shift
+            ;;
+        -p)
+            use_exabgp=1
+            prefix_count=$2
+            shift 2
             ;;
 
         --)
@@ -59,10 +65,18 @@ if [ $amount -lt 1 ]; then
     exit 1
 fi
 
-if [ $amount -gt 254 ]; then
-    echo "Must be less than 255"
+if [ $amount -gt 255 ]; then
+    echo "Must be less than 256"
     exit 1
 fi
+
+if [ $prefix_count -le 0 ] || [ $prefix_count -ge 64516 ]; then
+    echo "must be at least 1 prefix and less than 64516"
+    exit 1
+fi
+
+prefix_1oct=$(expr $prefix_count / 254 + 2)
+prefix_2oct=$(expr $prefix_count % 254 + 2)
 
 
 #
@@ -80,7 +94,7 @@ pkill -9 python
 rm -rf /var/run/frr/*
 
 # Remove all loopback old addresses.
-for instance in $(seq 1 254); do
+for instance in $(seq 1 255); do
     instance_addr=172.17.254.$instance
 
     ip addr del dev lo $instance_addr/32 >/dev/null 2>&1
@@ -134,9 +148,10 @@ import sys
 import time
 
 routes = []
-for net in range(1, 255):
-    msg = 'announce route 10.254.{}.0/24 next-hop 172.17.0.1\n'.format(net)
-    routes.append(msg)
+for net in range(1, ${prefix_1oct}):
+    for subnet in range(1, ${prefix_2oct}):
+        msg = 'announce route 10.{}.{}.0/24 next-hop 172.17.0.1\n'.format(net, subnet)
+        routes.append(msg)
 
 amount = 1
 for route in routes:
@@ -194,7 +209,7 @@ EOF
         exabgp.log.routes=true \
         exabgp.log.parser=false \
         exabgp.log.short=false \
-        exabgp $instance_dir/exabgp.cfg
+        exabgp $instance_dir/exabgp.cfg >/dev/null 2>&1
 done
 
 exit 0
