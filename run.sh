@@ -1,13 +1,14 @@
 #!/bin/bash
 
 usage() {
-    echo -e "$0: -a amount [-e] -m
+    echo -e "$0: -a amount [-e] [-m]
 
     -a amount: the amount of instances to run.
     -e: use exabgp to insert routes.
     -p prefixes: the amount of prefixes to insert (implies -e, default is 100).
     -m: enable measurement (see /tmp/measurement.log)
 "
+    exit 1
 }
 
 #
@@ -25,7 +26,6 @@ measure_file=measurement.log
 options=$(getopt -o "a:ep:m" -- $@)
 if [ $? -ne 0 ]; then
     usage
-    exit 1
 fi
 
 eval set -- "$options"
@@ -64,22 +64,22 @@ done
 
 if [ -z $amount ]; then
     echo "Please specify an amount"
-    exit 1
+    usage
 fi
 
 if [ $amount -lt 1 ]; then
     echo "Must be at least 1"
-    exit 1
+    usage
 fi
 
 if [ $amount -gt 255 ]; then
     echo "Must be less than 256"
-    exit 1
+    usage
 fi
 
 if [ $prefix_count -le 0 ] || [ $prefix_count -ge 64516 ]; then
     echo "must be at least 1 prefix and less than 64516"
-    exit 1
+    usage
 fi
 
 prefix_1oct=$(expr $prefix_count / 254 + 2)
