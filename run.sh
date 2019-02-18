@@ -1,11 +1,12 @@
 #!/bin/bash
 
 usage() {
-    echo -e "$0: -a amount [-e]
+    echo -e "$0: -a amount [-e] -m
 
     -a amount: the amount of instances to run.
     -e: use exabgp to insert routes.
     -p prefixes: the amount of prefixes to insert (implies -e, default is 100).
+    -m: enable measurement (see /tmp/measurement.log)
 "
 }
 
@@ -15,11 +16,13 @@ usage() {
 use_exabgp=0
 prefix_count=100
 exabgp_user=frr
+measure=0
+measure_file=measurement.log
 
 #
 # Script input sanitize.
 #
-options=$(getopt -o "a:ep:" -- $@)
+options=$(getopt -o "a:ep:m" -- $@)
 if [ $? -ne 0 ]; then
     usage
     exit 1
@@ -42,6 +45,10 @@ while true; do
             use_exabgp=1
             prefix_count=$2
             shift 2
+            ;;
+        -m)
+            measure=1
+            shift
             ;;
 
         --)
@@ -76,7 +83,7 @@ if [ $prefix_count -le 0 ] || [ $prefix_count -ge 64516 ]; then
 fi
 
 prefix_1oct=$(expr $prefix_count / 254 + 2)
-prefix_2oct=$(expr $prefix_count % 254 + 2)
+prefix_2oct=$(expr $prefix_count % 254 + 1)
 
 
 #
@@ -104,6 +111,8 @@ done
 #
 # Start up.
 #
+echo -n > $measure_file
+
 for instance in $(seq 1 $amount); do
     instance_dir=/var/run/frr/r$instance
     instance_config_dir=/etc/frr/r$instance
@@ -138,6 +147,10 @@ EOF
 
     # Skip exabgp if configured to.
     if [ $use_exabgp -eq 0 ]; then
+        sleep 0.1
+        if [ $measure -ne 0 ]; then
+            bash measure.sh -c >> $measure_file
+        fi
         continue
     fi
 
@@ -151,13 +164,9 @@ routes = []
 for net in range(1, ${prefix_1oct}):
     for subnet in range(1, ${prefix_2oct}):
         msg = 'announce route 10.{}.{}.0/24 next-hop 172.17.0.1\n'.format(net, subnet)
-        routes.append(msg)
-
-amount = 1
-for route in routes:
-    sys.stdout.write(route)
-    sys.stdout.flush()
-    time.sleep(0.1)
+        sys.stdout.write(msg)
+        sys.stdout.flush()
+        time.sleep(0.1)
 
 try:
     while True:
@@ -210,6 +219,19 @@ EOF
         exabgp.log.parser=false \
         exabgp.log.short=false \
         exabgp $instance_dir/exabgp.cfg >/dev/null 2>&1
+
+    if [ $measure -ne 0 ]; then
+        echo -n "=> Waiting for routes in router $instance"
+        bash expected_routes.sh -n $instance -p $prefix_count
+        while [ $? -ne 0 ]; do
+            echo -n "."
+            sleep 2
+            bash expected_routes.sh -n $instance -p $prefix_count
+        done
+        echo "done!"
+
+        bash measure.sh -c >> $measure_file
+    fi
 done
 
 exit 0
