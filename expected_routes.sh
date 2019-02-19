@@ -70,6 +70,11 @@ actual_prefixes=$(vtysh -N r$instance_number \
                       | sed -r 's/( )+/ /g' \
                       | cut -d ' ' -f 2)
 
+numre='^[0-9]+$'
+if ! [[ $actual_prefixes =~ $numre ]]; then
+    exit 1
+fi
+
 if [ $prefix_number -ne $actual_prefixes ]; then
     exit 1
 fi

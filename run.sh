@@ -82,9 +82,6 @@ if [ $prefix_count -le 0 ] || [ $prefix_count -ge 64516 ]; then
     usage
 fi
 
-prefix_1oct=$(expr $prefix_count / 254 + 2)
-prefix_2oct=$(expr $prefix_count % 254 + 1)
-
 
 #
 # Clean ups.
@@ -154,52 +151,10 @@ EOF
         continue
     fi
 
-    cat >> $instance_dir/send-routes.py <<EOF
-#!/usr/bin/env python
-
-import sys
-import time
-
-routes = []
-for net in range(1, ${prefix_1oct}):
-    for subnet in range(1, ${prefix_2oct}):
-        msg = 'announce route 10.{}.{}.0/24 next-hop 172.17.0.1\n'.format(net, subnet)
-        sys.stdout.write(msg)
-        sys.stdout.flush()
-        time.sleep(0.1)
-
-try:
-    while True:
-        time.sleep(1)
-except IOError:
-    exit(1)
-
-exit(0)
-EOF
-
-    chmod a+x $instance_dir/send-routes.py
-
-    cat >> $instance_dir/exabgp.cfg <<EOF
-process add-remove {
-        run $instance_dir/send-routes.py;
-        encoder json;
-}
-
-neighbor $instance_addr {
-        router-id 172.17.0.1;
-        local-address 127.0.0.1;
-        local-as 100;
-        peer-as 100;
-
-        capability {
-                graceful-restart;
-        }
-
-        api {
-                processes [ add-remove ];
-        }
-}
-EOF
+    python exabgp_config.py \
+           "$instance_dir/exabgp.cfg" \
+           "$instance_addr" \
+           "$prefix_count"
 
     env \
         exabgp.daemon.daemonize=true \
@@ -218,14 +173,18 @@ EOF
         exabgp.log.routes=true \
         exabgp.log.parser=false \
         exabgp.log.short=false \
+        exabgp.api.ack=false \
+        exabgp.api.cli=false \
+        exabgp.cache.attributes=false \
+        exabgp.cache.nexthops=false \
         exabgp $instance_dir/exabgp.cfg >/dev/null 2>&1
 
     if [ $measure -ne 0 ]; then
-        echo -n "=> Waiting for routes in router $instance"
+        echo -n "=> Waiting for routes in router $instance: "
         bash expected_routes.sh -n $instance -p $prefix_count
         while [ $? -ne 0 ]; do
             echo -n "."
-            sleep 2
+            sleep 1
             bash expected_routes.sh -n $instance -p $prefix_count
         done
         echo "done!"
