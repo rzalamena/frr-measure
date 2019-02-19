@@ -191,6 +191,9 @@ EOF
 
         bash measure.sh -c >> $measure_file
     fi
+
+    # Free up some space/memory, we no longer need this file.
+    rm $instance_dir/exabgp.cfg
 done
 
 exit 0
