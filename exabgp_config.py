@@ -30,9 +30,9 @@ while prefix_count >= 0:
 
     fd.write('      unicast 10.{}.{}.0/24 next-hop 172.17.0.1;\n'.format(net, subnet))
 
-fd.write('''    }}
-  }}
-}}
+fd.write('''    }
+  }
+}
 ''')
 
 exit(0)

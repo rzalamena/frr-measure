@@ -46,7 +46,7 @@ done
 #
 # Start up.
 #
-output=$(smem -P "^(bgpd|staticd|zebra)" -t \
+output=$(smem -P "^(bgpd|staticd|zebra|ospfd|isisd)" -t \
              | tail -n 1 \
              | sed -r 's/( )+/ /g' \
              | sed -r 's/^( )+//g')
@@ -68,12 +68,22 @@ zebra_output=$(smem -P "^zebra" -t \
                    | sed -r 's/( )+/ /g' \
                    | sed -r 's/^( )+//g' \
                    | cut -d ' ' -f 5)
+ospfd_output=$(smem -P "^ospfd" -t \
+                   | tail -n 1 \
+                   | sed -r 's/( )+/ /g' \
+                   | sed -r 's/^( )+//g' \
+                   | cut -d ' ' -f 5)
+isisd_output=$(smem -P "^isisd" -t \
+                   | tail -n 1 \
+                   | sed -r 's/( )+/ /g' \
+                   | sed -r 's/^( )+//g' \
+                   | cut -d ' ' -f 5)
 
 if [ $format == "human" ]; then
-    echo -e "Instances\tPSS usage\tBGP\tstaticd\tzebra"
-    echo -e "$instance_count\t\t$pss_usage\t\t$bgp_output\t$staticd_output\t$zebra_output"
+    echo -e "Instances\tPSS usage\tBGP\tstaticd\tzebra\tospfd\tisisd"
+    echo -e "$instance_count\t\t$pss_usage\t\t$bgp_output\t$staticd_output\t$zebra_output\t$ospfd_output\t$isisd_output"
 else
-    echo "$instance_count,$pss_usage,$bgp_output,$staticd_output,$zebra_output"
+    echo "$instance_count,$pss_usage,$bgp_output,$staticd_output,$zebra_output,$ospfd_output,$isisd_output"
 fi
 
 exit 0

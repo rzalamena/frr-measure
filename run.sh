@@ -91,6 +91,8 @@ fi
 pkill -9 zebra
 pkill -9 bgpd
 pkill -9 staticd
+pkill -9 isisd
+pkill -9 ospfd
 pkill -9 exabgp
 pkill -9 python
 
@@ -131,16 +133,22 @@ router bgp $instance_asn
 EOF
 
     # Start daemons.
-    zebra \
+    /usr/lib/frr/zebra \
         -d -N r$instance -z $instance_dir/zserv.sock \
         --log file:$instance_dir/zebra.log --log-level debug
-    staticd \
+    /usr/lib/frr/staticd \
         -d -N r$instance -z $instance_dir/zserv.sock \
         --log file:$instance_dir/staticd.log --log-level debug
-    bgpd \
+    /usr/lib/frr/bgpd \
         -d -N r$instance -z $instance_dir/zserv.sock \
         --log file:$instance_dir/bgpd.log --log-level debug \
         -n -l $instance_addr
+    /usr/lib/frr/ospfd \
+        -d -N r$instance -z $instance_dir/zserv.sock \
+        --log file:$instance_dir/ospfd.log --log-level debug
+    /usr/lib/frr/isisd \
+        -d -N r$instance -z $instance_dir/zserv.sock \
+        --log file:$instance_dir/isisd.log --log-level debug
 
     # Skip exabgp if configured to.
     if [ $use_exabgp -eq 0 ]; then
@@ -177,7 +185,7 @@ EOF
         exabgp.api.cli=false \
         exabgp.cache.attributes=false \
         exabgp.cache.nexthops=false \
-        exabgp $instance_dir/exabgp.cfg >/dev/null 2>&1
+        python3-exabgp $instance_dir/exabgp.cfg >/dev/null 2>&1
 
     if [ $measure -ne 0 ]; then
         echo -n "=> Waiting for routes in router $instance: "
